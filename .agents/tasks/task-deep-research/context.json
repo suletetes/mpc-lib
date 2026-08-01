@@ -1,0 +1,22 @@
+{
+  "project_type": "C/C++ MPC cryptographic library (Fireblocks threshold signing)",
+  "language": "C/C++",
+  "build_system": "CMake with Makefile wrapper",
+  "test_framework": "Catch2 in test/ directories",
+  "build_command": "make build",
+  "test_command": "make test",
+  "verification_instructions": "Build with cmake and run tests",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "cmake and make",
+  "environment_constraints": "INTEGRATIONS_ONLY network - cannot install packages. Use AST analysis only.",
+  "contribution_requirements": "Security findings must reference SECURITY-MODEL.md sections",
+  "key_patterns": "OPENSSL_cleanse for secret cleanup, SHA256 for Fiat-Shamir, DRNG for deterministic challenges, BN_CTX for BIGNUM pools",
+  "relevant_files": [
+    "src/common/cosigner/mta.cpp",
+    "src/common/cosigner/mta.h",
+    "src/common/blockchain/mpc/hd_derive.cpp",
+    "include/cosigner/mpc_globals.h",
+    "src/common/crypto/zero_knowledge_proof/range_proofs.c"
+  ],
+  "directory_structure": "src/common/cosigner/ - CMP protocol implementation; src/common/blockchain/mpc/ - HD derivation; include/ - headers; test/ - Catch2 tests"
+}

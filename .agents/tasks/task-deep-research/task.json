@@ -1,0 +1,7 @@
+{
+  "task_id": "task-deep-research",
+  "task_description": "Deep aggressive research into 3 existing PoC vulnerabilities to strengthen attack narratives and find additional instances",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}
