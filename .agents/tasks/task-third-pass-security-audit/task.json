@@ -1,0 +1,7 @@
+{
+  "task_id": "task-third-pass-security-audit",
+  "task_description": "Deep security audit pass 3 for Bugcrowd-viable findings against SECURITY-MODEL.md acceptance criteria",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

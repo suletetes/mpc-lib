@@ -1,0 +1,31 @@
+{
+  "project_type": "C/C++ cryptographic MPC library (CMP-ECDSA, BAM, EdDSA, FROST)",
+  "language": "C/C++",
+  "build_system": "CMake with Makefile wrapper",
+  "test_framework": "Catch2 under test/",
+  "build_command": "make build (via docker if available)",
+  "test_command": "make test",
+  "verification_instructions": "Build the project using docker or make, run test suite",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "cmake, openssl required",
+  "environment_constraints": "Security audit - output is a findings document, no code changes to compile",
+  "contribution_requirements": "Findings must survive SECURITY-MODEL.md gauntlet",
+  "key_patterns": "OpenSSL BN arithmetic, Paillier encryption, ZKPs (range proofs, Schnorr, DH-log), commit-reveal, Fiat-Shamir via drng",
+  "relevant_files": [
+    "src/common/cosigner/mta.cpp",
+    "src/common/cosigner/cmp_ecdsa_signing_service.cpp",
+    "src/common/cosigner/cmp_ecdsa_online_signing_service.cpp",
+    "src/common/cosigner/cmp_ecdsa_offline_signing_service.cpp",
+    "src/common/cosigner/cmp_setup_service.cpp",
+    "src/common/cosigner/frost_cosigner_server.cpp",
+    "src/common/cosigner/bam_ecdsa_cosigner_server.cpp",
+    "src/common/cosigner/bam_well_formed_proof.cpp",
+    "src/common/cosigner/asymmetric_eddsa_cosigner_server.cpp",
+    "src/common/cosigner/eddsa_online_signing_service.cpp",
+    "src/common/crypto/zero_knowledge_proof/range_proofs.c",
+    "src/common/crypto/paillier/paillier.c",
+    "src/common/blockchain/mpc/hd_derive.cpp",
+    "SECURITY-MODEL.md"
+  ],
+  "directory_structure": "src/common/cosigner/ (protocol logic), src/common/crypto/ (primitives), include/ (headers), test/ (Catch2 tests)"
+}
