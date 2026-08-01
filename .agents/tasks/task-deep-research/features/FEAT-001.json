@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "docs",
   "description": "Write comprehensive deep research document covering all 3 vulnerabilities with strengthened attack narratives, additional instances, and data flow traces",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Write DEEP_RESEARCH.md covering Finding 1 (HD Derive) with: all callers traced, additional uncleansed buffers found (chain codes, derive_public_key_generic), HMAC_CTX internal state issue, 5 calls per BIP44 path",
     "Write Finding 2 (MTA Seed Truncation) section with: verifier-side confirmation, version downgrade attack path, hardcoded use_extended_seed=0 in range_proof calls, complete data flow from network to vulnerable function",
@@ -17,5 +17,5 @@
   ],
   "verification": ["File exists at poc/DEEP_RESEARCH.md with all sections"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Document written at poc/DEEP_RESEARCH.md (1187 lines). All three findings fully detailed with code snippets, data flow traces, line numbers, and combined attack scenarios. No em dashes used."
 }
