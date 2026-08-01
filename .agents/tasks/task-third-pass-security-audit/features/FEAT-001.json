@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "docs",
   "description": "Write the comprehensive third-pass security audit findings document at poc/THIRD_PASS_FINDINGS.md",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Analyze the MTA ZKP seed generation buffer reuse bug in generate_mta_range_zkp_seed where BN_bn2bin writes proof.A into buffer sized for proof.S",
     "Analyze the missing OPENSSL_cleanse on stack secrets in hd_derive.cpp (already known) and validate in context of this audit",
@@ -13,5 +13,5 @@
   "acceptance_criteria": ["Document exists at poc/THIRD_PASS_FINDINGS.md with properly vetted findings"],
   "verification": ["File exists and contains properly formatted findings"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "4 findings documented: (1) MTA Fiat-Shamir hash truncation in legacy path, (2) 40-bit statistical security in batch verification, (3) HD derive stack secret leak, (4) Missing key binding in legacy Fiat-Shamir. Paillier batch uses 8-bit gamma values with 5 slots = 40 bits total. Ring Pedersen batch uses 40-bit gamma with single accumulated check = 40 bits. Non-extended seed path is used for range_proof_exponent_zkpok and range_proof_diffie_hellman_zkpok even on new versions (hardcoded use_extended_seed=0 in signing services)."
 }
