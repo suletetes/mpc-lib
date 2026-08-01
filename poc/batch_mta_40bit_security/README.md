@@ -60,9 +60,77 @@ In batch verification, the verifier computes a random linear combination of indi
 | Total security | 40 bits | 80 bits | 128 bits |
 | Forgery probability | 2^{-40} | 2^{-80} | 2^{-128} |
 
-### Additional issue: gamma = 0 is possible
+### Additional issue: gamma = 0 is accepted without validation
 
-When `random[i * 2] == 0`, the code sets gamma = 0. Then `B^gamma = B^0 = 1`, which means that verification slot contributes nothing to the batch check. This occurs with probability 1/256 per slot, and with 5 slots the probability of at least one dead slot per batch is approximately 1.9%.
+When `random[i * 2] == 0`, the code sets gamma = 0 via `BN_set_word(gamma, 0)`. There is no check rejecting this value. The consequences are severe for the affected slot:
+
+- `BN_mod_exp_mont(tmp1, B, gamma, ...)` computes `B^0 = 1`
+- The accumulated product `_mta_B[i] *= 1` is unchanged
+- That slot contributes NOTHING to the batch verification for that particular proof
+- ANY value of B (even a completely invalid one) will pass that slot's check
+
+**Probability analysis for production workloads:**
+
+| Metric | Calculation | Value |
+|--------|-------------|-------|
+| P(gamma=0) for one slot, one proof | 1/256 | 0.39% |
+| P(at least one gamma=0 in 5 slots) per proof | 1 - (255/256)^5 | ~1.9% |
+| Expected gamma=0 events for 100 proofs (50 blocks x 2 MTAs) | 100 * 5 / 256 | ~1.95 |
+| Expected gamma=0 events for 1000 proofs (500 blocks x 2 MTAs) | 1000 * 5 / 256 | ~19.5 |
+
+When gamma=0 occurs for a slot, that slot's security contribution for that specific proof drops to zero. While the other 4 slots still provide 32 bits of security for that proof, the aggregate guarantee degrades below the already-insufficient 40-bit target.
+
+## Ring Pedersen Single Accumulator Architecture
+
+The Ring Pedersen batch check uses a fundamentally different (and independently weak) architecture:
+
+```cpp
+// mta.cpp:1248-1345, batch_response_verifier::process_ring_pedersen()
+uint64_t gamma[2];
+RAND_bytes(reinterpret_cast<uint8_t*>(&gamma[0]), 2 * sizeof(uint64_t));  // 16 random bytes
+gamma[0] &= 0xffffffffffULL;  // Truncate to 40 bits
+gamma[1] &= 0xffffffffffULL;  // Truncate to 40 bits
+```
+
+The structure:
+- `gamma[0]` (40 bits): used for the `s^z1 * t^z3 == E * S^e` check
+- `gamma[1]` (40 bits): used for the `s^z2 * t^z4 == F * T^e` check
+- Both accumulate into ONE `_pedersen_t_exp` value for ALL proofs in the batch
+- Both accumulate into ONE `_pedersen_B` value for ALL proofs in the batch
+
+**Final verification (a single check for ALL proofs combined):**
+```
+t^(_pedersen_t_exp mod phi_n) == _pedersen_B mod n
+```
+
+This is ONE modular exponentiation check that covers ALL proofs in the batch simultaneously. An attacker submitting one invalid proof among many valid ones needs their invalid contribution to cancel out in the accumulated product, which succeeds with probability exactly 2^{-40} (the entropy of the gamma assigned to their proof).
+
+## No Fallback to Individual Verification
+
+This is a critical architectural decision that maximizes the impact of a successful forgery:
+
+```cpp
+// batch_response_verifier::verify() at mta.cpp:~1052
+void batch_response_verifier::verify()
+{
+    // checks accumulated products
+    // if any check fails:
+    throw cosigner_exception(cosigner_exception::INVALID_PARAMETERS);
+}
+```
+
+If batch verification **passes** (honestly or fraudulently), ALL proofs are accepted. There is no second pass, no individual re-check, no opportunity to catch the invalid proof. The attack succeeds completely.
+
+If batch verification **fails**, the entire signing operation is aborted (all proofs rejected). There is NO "retry with individual verification" path that might catch which specific proof was bad.
+
+**Contrast with the single-proof verifier:**
+```cpp
+// single_response_verifier::process() checks each proof individually during processing
+// single_response_verifier::verify() is empty - checks already done
+virtual void verify() override {} // empty
+```
+
+The `single_response_verifier` (used for < 6 blocks) checks each proof individually during `process()`, immediately rejecting invalid proofs with no probabilistic element. The batch verifier trades this certainty for performance, accepting a probabilistic guarantee that is far too weak at 40 bits.
 
 ## Attack Scenario
 
@@ -71,6 +139,12 @@ When `random[i * 2] == 0`, the code sets gamma = 0. Then `B^gamma = B^0 = 1`, wh
 **Trigger conditions:**
 
 The batch verification path activates when `num_of_blocks >= MIN_BATCH_SIZE` (defined as `BATCH_STATISTICAL_SECURITY + 1 = 6` in mta.h). Since there are 2 MTA operations per ECDSA signature block, a signing request with 3 or more blocks generates 6+ MTA verifications and triggers batch mode.
+
+**Production trigger analysis:**
+- 3+ signature blocks = 6 MTA operations (2 per block) = triggers batch mode
+- `MAX_BLOCKS_TO_SIGN = 1000` (defined in `mpc_globals.h:10`)
+- Multi-signature wallet operations routinely use 3+ blocks (batch payouts, exchange withdrawals, treasury operations)
+- A malicious co-signer can request up to 1000 blocks in a single session, all processed through the same batch verifier with only 40-bit security
 
 **Attack steps:**
 
@@ -163,15 +237,20 @@ The PoC reproduces the gamma generation logic from `process_paillier()`, demonst
 
 | Dimension | Assessment |
 |-----------|------------|
-| **Soundness** | Batch verification provides 40 bits of statistical security instead of the required 80 bits |
-| **Forgery probability** | 2^{-40} per batch, which is 2^{40} times higher than intended |
-| **Reachability** | Active on any signing session with 3+ blocks (common in production) |
+| **Soundness** | Batch verification provides 40 bits of statistical security instead of the required 128 bits (or minimum 80 bits) |
+| **Forgery probability** | 2^{-40} per batch, which is 2^{88} times weaker than the 128-bit standard |
+| **Reachability** | Active on any signing session with 3+ blocks (common in production multi-signature operations) |
+| **Maximum batch size** | Up to 1000 blocks (2000 MTA operations), all verified with the same 40-bit security |
 | **What it bypasses** | MTA range proofs that constrain additive shares to safe ranges |
+| **No fallback** | If batch verification passes fraudulently, attack succeeds with no second chance. No individual re-verification path exists. |
+| **gamma=0 degradation** | ~1.9% of proofs have at least one dead verification slot, further degrading below 40 bits |
 | **Downstream impact** | Invalid additive shares can bias the signing nonce, potentially enabling key extraction |
 | **Bugcrowd category** | Section 4.2 bullet 3: "Incomplete ZKP generation... does not achieve the soundness level its parameters claim" |
-| **Suggested rating** | P3 (Medium): achievable security is half the protocol specification; batch mode is the default path for multi-block signing |
+| **Suggested rating** | P3 (Medium): achievable security is less than one-third of the protocol specification; batch mode is the default path for multi-block signing; no verification fallback |
 
 ## Recommended Fix
+
+### Fix 1: Use proper multi-byte random scalars for gamma
 
 Replace the `uint8_t` random buffer with proper multi-byte random scalars. Each gamma should have at least 128 bits of entropy:
 
@@ -202,6 +281,41 @@ Replace the `uint8_t` random buffer with proper multi-byte random scalars. Each 
 ```
 
 And similarly for the second loop (commitment verification) using the odd-indexed blocks.
+
+### Fix 2: Reject gamma = 0 values
+
+Add validation after generating each gamma to ensure it is non-zero:
+
+```diff
++    // Ensure gamma is non-zero (B^0 = 1 contributes nothing to batch check)
++    if (BN_is_zero(gamma))
++    {
++        // Resample or set to 1; with 128-bit gammas this is astronomically unlikely
++        // but defense-in-depth requires the check
++        BN_one(gamma);
++    }
+```
+
+With 128-bit gamma values, the probability of gamma=0 is negligible (2^{-128}). However, the explicit check provides defense-in-depth and documents the requirement clearly.
+
+### Fix 3: Update Ring Pedersen gamma to 128 bits
+
+```diff
+--- a/src/common/cosigner/mta.cpp
++++ b/src/common/cosigner/mta.cpp
+@@ Ring Pedersen batch check
+-    uint64_t gamma[2];
+-    RAND_bytes(reinterpret_cast<uint8_t*>(&gamma[0]), 2 * sizeof(uint64_t));
+-    gamma[0] &= 0xffffffffffULL;  // 40 bits
+-    gamma[1] &= 0xffffffffffULL;  // 40 bits
++    // Use 128-bit random coefficients for Ring Pedersen batch check
++    uint8_t gamma_bytes[2][16];
++    RAND_bytes(gamma_bytes[0], 16);
++    RAND_bytes(gamma_bytes[1], 16);
++    BIGNUM *gamma_rp[2] = {BN_new(), BN_new()};
++    BN_bin2bn(gamma_bytes[0], 16, gamma_rp[0]);
++    BN_bin2bn(gamma_bytes[1], 16, gamma_rp[1]);
+```
 
 Alternatively, increase `BATCH_STATISTICAL_SECURITY` to compensate, but fixing the gamma bit-length is the correct approach since it addresses the root cause without adding computational overhead from extra modular exponentiations:
 
