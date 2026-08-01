@@ -1,0 +1,7 @@
+{
+  "task_id": "task-security-audit",
+  "task_description": "Comprehensive aggressive security audit of the Fireblocks MPC cryptographic library, identifying hidden and subtle vulnerabilities across all source files",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}

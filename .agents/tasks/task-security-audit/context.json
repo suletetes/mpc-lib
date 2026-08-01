@@ -1,0 +1,30 @@
+{
+  "project_type": "C/C++ cryptographic library implementing MPC threshold signing protocols (CMP-ECDSA, BAM, EdDSA, FROST)",
+  "language": "C and C++",
+  "build_system": "CMake + Make",
+  "test_framework": "Catch2 test framework with custom test helpers",
+  "build_command": "mkdir -p build && cd build && cmake .. && make",
+  "test_command": "cd build && make test",
+  "verification_instructions": "Build with CMake, run test suite",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "apt install build-essential libssl-dev uuid-dev libsecp256k1-dev && mkdir build && cd build && cmake .. && make",
+  "environment_constraints": "Requires OpenSSL 1.1.1+, targets Ubuntu 20.04 LTS",
+  "contribution_requirements": "Security findings should follow SECURITY-MODEL.md guidelines",
+  "key_patterns": "Uses OpenSSL BN for big number operations, BN_FLG_CONSTTIME for sensitive values, OPENSSL_cleanse for secret cleanup, drng for Fiat-Shamir challenges",
+  "relevant_files": [
+    "src/common/crypto/paillier/paillier.c",
+    "src/common/crypto/paillier/paillier_zkp.c",
+    "src/common/crypto/zero_knowledge_proof/range_proofs.c",
+    "src/common/crypto/zero_knowledge_proof/diffie_hellman_log.c",
+    "src/common/crypto/zero_knowledge_proof/schnorr.c",
+    "src/common/crypto/commitments/ring_pedersen.c",
+    "src/common/crypto/ed25519_algebra/ed25519_algebra.c",
+    "src/common/crypto/drng/drng.c",
+    "src/common/crypto/GFp_curve_algebra/GFp_curve_algebra.c",
+    "src/common/cosigner/mta.cpp",
+    "src/common/cosigner/cmp_ecdsa_online_signing_service.cpp",
+    "src/common/blockchain/mpc/hd_derive.cpp",
+    "src/common/crypto/shamir_secret_sharing/verifiable_secret_sharing.c"
+  ],
+  "directory_structure": "src/common/crypto/ has primitives (paillier, commitments, ZKPs, EC algebras, DRNG); src/common/cosigner/ has protocol implementations; include/ has public headers; test/ has Catch2 tests"
+}
